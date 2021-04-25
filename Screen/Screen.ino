@@ -8,21 +8,27 @@
 // ***SETUP BUTTONS*** \\
 
 const int t_debounce=10000; //[us]
+const long period = 1000000;   /* this amounts to 1 sec */
+const long duty = 300000; /* 300ms */
 
 enum ButtonState {UP,DEBOUNCING,DOWN};
+enum ButtonRole {PLUS,MINUS,SWITCH};
 
 struct Button {
-  int hold; // 0 - not pressed, 1 - holding button, 2 - incrementing
+  int hold; // 0 - not pressed, 1 - holding button, 2 - incrementing_pause, 3 - incrementing
   long deadline;
+  long anchor;
   ButtonState state;
+  ButtonRole role;
   unsigned char pin;
 };
 
 
-void button_init(Button& b, int which) {
+void button_init(Button& b, int which, ButtonRole role) {
   b.hold=0;
   b.pin=which;
   b.state=UP;
+  b.role=role;
   pinMode(which,INPUT);
 }
 
@@ -41,8 +47,19 @@ int get_pulse(Button& b){
     case DEBOUNCING:
       if(duration(now,b.deadline)<0) return 0;
       b.state=DOWN;
+      b.hold=1;
+      b.anchor = micros();
       return 1;
-    case DOWN: 
+    case DOWN:
+      if(b.hold>0 && duration(now,b.anchor)>=duty) {
+        if(b.hold == 2) {
+           b.hold = 3; // Set increment's pause
+           b.anchor = micros();
+        }
+        else if((duration(now,b.anchor)>=period && b.hold==1) || b.hold == 3) {
+          b.hold = 2; //Button was held for 1s or Set increment's action 
+        } 
+      }
       return 0;
   }
  // return 0; //This is never reached. Just to fix warning: control reaches end of non-void function [-Wreturn-type] bug
@@ -88,17 +105,11 @@ void disp_7seg(unsigned char column, unsigned char glowing_leds_bitmask)
 // button helpers
 
 Button button_plus, button_minus, button_switch;
-long anchor_plus = 0;
-long anchor_minus = 0;
-long achor_switch = 0;
 
 //  general
 
 inline long duration(long now, long then) {return ((unsigned long)now)-then;}
 
-long deadline;
-const long period = 1000000;   /* this amounts to 1 sec */
-const long duty = 300000; /* 300ms */
 int column=0;
 int number=0;
 
@@ -106,7 +117,7 @@ int number=0;
 const unsigned char font[]={0b11111100, 0b01100000, 0b11011010, 0b11110010,0b01100110,0b10110110,0b10111110,0b11100000,0b11111110,0b11110110};
 
 // *** Start Code *** \\
-//int array_number[4];
+int number_arr[4] = {0,0,0,0};
 
 void increment() {
   number++;
@@ -133,39 +144,34 @@ void setup()
   Serial.begin(9600);
   while(!Serial);
   
-  button_init(button_plus, button1_pin);
-  button_init(button_minus, button2_pin);
-  button_init(button_switch, button3_pin);
-  
   disp_init();
   pinMode(button1_pin, INPUT);
   pinMode(button2_pin, INPUT);
   pinMode(button3_pin, INPUT);
- 
-  
-  deadline=micros();
+  button_init(button_plus, button1_pin, PLUS);
+  button_init(button_minus, button2_pin, MINUS);
+  button_init(button_switch, button3_pin, SWITCH);
 }
 
 void loop() 
 {
-  long now=micros();
-  if(duration(now,deadline)>=0){
-//    deadline+=1000000;
- }
-
   if(get_pulse(button_plus)){
-    button_plus.hold = 1;
     increment();
   }
   if(get_pulse(button_minus)){
-    button_minus.hold = 1;
     decrement();
   }
   if(get_pulse(button_switch)){
-    button_switch.hold = 1;
     switch_button();
   }
-  
+
+  if(button_plus.hold==2)
+    increment();
+  if(button_minus.hold==2)
+     decrement();
+  if(button_switch.hold==2)
+     switch_button();
+
+   
   disp_7seg(column, font[number]);
-  
 }
