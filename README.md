@@ -12,4 +12,4 @@ Button #1 increments the currently selected digit when pressed (when the button 
 Button #2 works in the same way as button #1, but it decrements the value (i.e., adds -1, -10, -100, or -1000 to the counter depending on currently selected order).
 All buttons are equipped with the autorepeat function as described in the previous assignment (first after 1000ms, every other after 300 ms).
 
-See this video, which visualize the reference solution, to get a better idea.
+See this video, which visualize the reference solution, to get a better idea. https://www.youtube.com/watch?v=F9afOP5Jq-8
