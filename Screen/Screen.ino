@@ -21,12 +21,15 @@ struct Button {
   unsigned char pin;
 };
 
-
 void button_init(Button& b, int which) {
   b.hold=0;
   b.pin=which;
   b.state=UP;
   pinMode(which,INPUT);
+}
+
+long duration(long now, long then) {
+  return ((unsigned long)now)-then;
 }
 
 int get_pulse(Button& b){
@@ -61,7 +64,6 @@ int get_pulse(Button& b){
   }
  // return 0; //This is never reached. Just to fix warning: control reaches end of non-void function [-Wreturn-type] bug
 }  
-
 
 // *** SETUP SCREEN *** \\
 
@@ -99,34 +101,59 @@ void disp_7seg(unsigned char column, unsigned char glowing_leds_bitmask)
 
 // *** SETUP HELPERS *** \\
 
-// button helpers
-
-Button button_plus, button_minus, button_switch;
-
-//  general
-
-inline long duration(long now, long then) {return ((unsigned long)now)-then;}
+// font is array of numbers for screen. 0th element is zero, 1st element is one and so on until nine
+const unsigned char font[]={0b11111100, 0b01100000, 0b11011010, 0b11110010,0b01100110,0b10110110,0b10111110,0b11100000,0b11111110,0b11110110};
+const unsigned int math[]= {1,10,100,1000};
 
 int column=0;
 int number=0;
+int arr[4]; 
 
-// font is array of numbers for screen. 0th element is zero, 1st element is one and so on until nine
-const unsigned char font[]={0b11111100, 0b01100000, 0b11011010, 0b11110010,0b01100110,0b10110110,0b10111110,0b11100000,0b11111110,0b11110110};
+Button button_plus, button_minus, button_switch;
 
 // *** Start Code *** \\
-int number_arr[4] = {0,0,0,0};
 
 void increment() {
-  number++;
-  if(number==10) {
-    number=0;
+  increment_helper(column);
+}
+
+void increment_helper(int col) {
+  if(col==4) {
+    if(arr[3]==0) {
+      for(int i=0; i<4; i++)
+        arr[i] = 0;
+    }
+    return;
   }
+  
+  arr[col]++; 
+  if(arr[col] == 10) {
+    arr[col]=0;
+    col++;
+    increment_helper(col);
+  }
+  return; 
 }
 void decrement() {
-  number--;
-  if(number==-1) {
-    number = 9;
+ decrement_helper(column);
+}
+
+void decrement_helper(int col) {
+  if(col==4) {
+    if(arr[3]==9) {
+      for(int i=0; i<4; i++)
+        arr[i] = 9;
+    }
+    return;
   }
+  
+  arr[col]--;
+  if(arr[col]<0) {
+    arr[col]= 9;
+    col++;
+    decrement_helper(col);
+  } 
+  return;
 }
 
 void switch_button() {
@@ -148,6 +175,11 @@ void setup()
   button_init(button_plus, button1_pin);
   button_init(button_minus, button2_pin);
   button_init(button_switch, button3_pin);
+
+  for(int i = 0 ;i<4; i++) {
+    arr[i] = 0;
+  }
+  
 }
 
 void loop() 
@@ -169,6 +201,5 @@ void loop()
   if(button_switch.hold==2)
      switch_button();
 
-   
-  disp_7seg(column, font[number]);
+  disp_7seg(column, font[arr[column]]);
 }
