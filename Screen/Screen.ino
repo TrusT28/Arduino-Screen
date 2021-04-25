@@ -12,23 +12,20 @@ const long period = 1000000;   /* this amounts to 1 sec */
 const long duty = 300000; /* 300ms */
 
 enum ButtonState {UP,DEBOUNCING,DOWN};
-enum ButtonRole {PLUS,MINUS,SWITCH};
 
 struct Button {
   int hold; // 0 - not pressed, 1 - holding button, 2 - incrementing_pause, 3 - incrementing
   long deadline;
   long anchor;
   ButtonState state;
-  ButtonRole role;
   unsigned char pin;
 };
 
 
-void button_init(Button& b, int which, ButtonRole role) {
+void button_init(Button& b, int which) {
   b.hold=0;
   b.pin=which;
   b.state=UP;
-  b.role=role;
   pinMode(which,INPUT);
 }
 
@@ -148,9 +145,9 @@ void setup()
   pinMode(button1_pin, INPUT);
   pinMode(button2_pin, INPUT);
   pinMode(button3_pin, INPUT);
-  button_init(button_plus, button1_pin, PLUS);
-  button_init(button_minus, button2_pin, MINUS);
-  button_init(button_switch, button3_pin, SWITCH);
+  button_init(button_plus, button1_pin);
+  button_init(button_minus, button2_pin);
+  button_init(button_switch, button3_pin);
 }
 
 void loop() 
