@@ -8,21 +8,18 @@
 // ***SETUP BUTTONS*** \\
 
 const int t_debounce=10000; //[us]
-const long period = 1000000;   /* this amounts to 1 sec */
-const long duty = 300000; /* 300ms */
+const long t_slow = 1000000;   /* this amounts to 1 sec */
+const long t_fast = 300000; /* 300ms */
 
 enum ButtonState {UP,DEBOUNCING,DOWN};
 
 struct Button {
-  int hold; // 0 - not pressed, 1 - holding button, 2 - incrementing_pause, 3 - incrementing
   long deadline;
-  long anchor;
   ButtonState state;
   unsigned char pin;
 };
 
 void button_init(Button& b, int which) {
-  b.hold=0;
   b.pin=which;
   b.state=UP;
   pinMode(which,INPUT);
@@ -33,7 +30,6 @@ long duration(long now, long then) {return ((unsigned long)now)-then;}
 int get_pulse(Button& b){
   if(digitalRead(b.pin)==OFF){
     b.state = UP;
-    b.hold = 0;
     return 0;  
   }
   long now=micros();    /* the button has been pressed, which brought us here */
@@ -45,20 +41,12 @@ int get_pulse(Button& b){
     case DEBOUNCING:
       if(duration(now,b.deadline)<0) return 0;
       b.state=DOWN;
-      b.hold=1;
-      b.anchor = micros();
+      b.deadline+=t_slow;
       return 1;
     case DOWN:
-      if(b.hold>0 && duration(now,b.anchor)>=duty) {
-        if(b.hold == 2) {
-           b.hold = 3; // Set increment's pause
-           b.anchor = micros();
-        }
-        else if((duration(now,b.anchor)>=period && b.hold==1) || b.hold == 3) {
-          b.hold = 2; //Button was held for 1s or Set increment's action 
-        } 
-      }
-      return 0;
+      if(duration(now,b.deadline)<0) return 0;
+      b.deadline+=t_fast;
+      return 1;
   }
   return 0; //This is never reached. Just to fix warning: control reaches end of non-void function [-Wreturn-type] bug
 }  
@@ -77,9 +65,10 @@ inline void shift_out8(unsigned char data)
 void shift_out(unsigned int bit_pattern)
 {
   shift_out8(bit_pattern);
-  shift_out8(bit_pattern>>8);  
-  constDigitalWrite(latch_pin,HIGH); /* upon latch_pin rising edge, both 74HC595s will instantly change its outputs to */
-  constDigitalWrite(latch_pin,LOW);  /* its internal value that we've just shifted in */
+  shift_out8(bit_pattern>>8);
+  constDigitalWrite(latch_pin,HIGH);
+  constDigitalWrite(latch_pin,LOW);
+
 }
 
 void disp_init()
@@ -87,7 +76,7 @@ void disp_init()
   pinMode(latch_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
   pinMode(clock_pin, OUTPUT);
-  digitalWrite(clock_pin, LOW);
+  digitalWrite(clock_pin, HIGH);
   shift_out(0);
 }
 
@@ -102,6 +91,9 @@ void disp_7seg(unsigned char column, unsigned char glowing_leds_bitmask)
 // font is array of numbers for screen. 0th element is zero, 1st element is one and so on until nine
 const unsigned char font[]={0b11111100, 0b01100000, 0b11011010, 0b11110010,0b01100110,0b10110110,0b10111110,0b11100000,0b11111110,0b11110110};
 
+int state=0;
+int switch_state=0;
+bool updated = false;
 int column=0;
 int number=0;
 int arr[4]; 
@@ -118,7 +110,6 @@ void increment() {
     }
     else break;
   }
-  // increment_helper(column);
 }
 
 void decrement() {
@@ -150,38 +141,30 @@ void setup()
   button_init(button_plus, button1_pin);
   button_init(button_minus, button2_pin);
   button_init(button_switch, button3_pin);
-
-  for(int i = 0 ;i<4; i++) {
-    arr[i] = 0;
-  }
-  
 }
 
 void loop() 
 {
-   if(button_plus.hold==2)
-    increment();
-  if(button_minus.hold==2)
-     decrement();
-  if(button_switch.hold==2)
-     switch_button();
-     
-  if(get_pulse(button_plus)){
-    increment();
+  if(updated) {
+    if(state>0)
+      increment();
+    else if(state<0)
+      decrement();
+    if(switch_state>0)
+      switch_button();
+    state=0;
+    switch_state=0;
+    updated=false;
   }
-  if(get_pulse(button_minus)){
-    decrement();
-  }
-  if(get_pulse(button_switch)){
-    switch_button();
+  
+  int newState = state;
+  newState+=get_pulse(button_plus);
+  newState-=get_pulse(button_minus);
+  switch_state+=get_pulse(button_switch);
+  if(newState!=state || switch_state>0){
+    updated=true;
+    state = newState;
   }
 
-  unsigned char chosen = 0b00000001|font[arr[column]];
-  for(int i=0; i<4; i++){
-    unsigned char current;
-    if (i==column) 
-      current = chosen;
-    else current = font[arr[i]];
-    disp_7seg(i, current);
-  }
+  disp_7seg(column, font[arr[column]]);
 }
